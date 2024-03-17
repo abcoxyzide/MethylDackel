@@ -190,7 +190,7 @@ void *extractMBias(void *foo) {
                 }
                 rv = updateMetrics(config, plp[0]+i);
                 if(rv != 0) {
-                    modified_position = ((plp[0]+i)->b->core.flag & BAM_FREVERSE) ? (plp[0]+i)->b->core.l_qseq - (plp[0]+i)->qpos : (plp[0]+i)->qpos;
+                    modified_position = ((plp[0]+i)->b->core.flag & BAM_FREVERSE) ? (plp[0]+i)->b->core.l_qseq - 1 - (plp[0]+i)->qpos : (plp[0]+i)->qpos;
                     if(modified_position >= meths[strand-1]->m)
                         meths[strand-1] = growStrandMeth(meths[strand-1], modified_position);
                     if(rv < 0) {
