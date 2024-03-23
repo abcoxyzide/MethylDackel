@@ -58,7 +58,7 @@ void *extractMBias(void *foo) {
     Config *config = (Config*) foo;
     bam_hdr_t *hdr;
     bam_mplp_t iter;
-    int ret, tid, pos = 0, i, seqlen, rv, o = 0;
+    int ret, tid, pos = 0, i, seqlen, rv, o = 0, modified_position;
     int32_t bedIdx = 0;
     int strand;
     int n_plp; //This will need to be modified for multiple input files
@@ -190,26 +190,27 @@ void *extractMBias(void *foo) {
                 }
                 rv = updateMetrics(config, plp[0]+i);
                 if(rv != 0) {
-                    if((plp[0]+i)->qpos >= meths[strand-1]->m)
-                        meths[strand-1] = growStrandMeth(meths[strand-1], (plp[0]+i)->qpos);
+                    modified_position = ((plp[0]+i)->b->core.flag & BAM_FREVERSE) ? (plp[0]+i)->b->core.l_qseq - 1 - (plp[0]+i)->qpos : (plp[0]+i)->qpos;
+                    if(modified_position >= meths[strand-1]->m)
+                        meths[strand-1] = growStrandMeth(meths[strand-1], modified_position);
                     if(rv < 0) {
                         if((plp[0]+i)->b->core.flag & BAM_FREAD2) {
-                            assert((meths[strand-1]->unmeth2[(plp[0]+i)->qpos]) < 0xFFFFFFFF);
-                            meths[strand-1]->unmeth2[(plp[0]+i)->qpos]++;
+                            assert((meths[strand-1]->unmeth2[modified_position]) < 0xFFFFFFFF);
+                            meths[strand-1]->unmeth2[modified_position]++;
                         } else {
-                            assert((meths[strand-1]->unmeth1[(plp[0]+i)->qpos]) < 0xFFFFFFFF);
-                            meths[strand-1]->unmeth1[(plp[0]+i)->qpos]++;
+                            assert((meths[strand-1]->unmeth1[modified_position]) < 0xFFFFFFFF);
+                            meths[strand-1]->unmeth1[modified_position]++;
                         }
                     } else {
                         if((plp[0]+i)->b->core.flag & BAM_FREAD2) {
-                            assert((meths[strand-1]->meth2[(plp[0]+i)->qpos]) < 0xFFFFFFFF);
-                            meths[strand-1]->meth2[(plp[0]+i)->qpos]++;
+                            assert((meths[strand-1]->meth2[modified_position]) < 0xFFFFFFFF);
+                            meths[strand-1]->meth2[modified_position]++;
                         } else {
-                            assert((meths[strand-1]->meth1[(plp[0]+i)->qpos]) < 0xFFFFFFFF);
-                            meths[strand-1]->meth1[(plp[0]+i)->qpos]++;
+                            assert((meths[strand-1]->meth1[modified_position]) < 0xFFFFFFFF);
+                            meths[strand-1]->meth1[modified_position]++;
                         }
                     }
-                    if((plp[0]+i)->qpos+1 > meths[strand-1]->l) meths[strand-1]->l = (plp[0]+i)->qpos+1;
+                    if(modified_position+1 > meths[strand-1]->l) meths[strand-1]->l = modified_position+1;
                 }
             }
         }
@@ -238,6 +239,9 @@ void mbias_usage() {
 " -p INT           Minimum Phred threshold to include a base (default 5). This\n"
 "                  must be >0.\n"
 " -D INT           Maximum per-base depth (default 2000)\n"
+" --minIsize INT   Minimum insert size / fragment length. May be useful for\n"
+"                  applications such as cell-free DNA. Inclusive.\n"
+" --maxIsize INT   Maximum insert size / fragment length. Also inclusive.\n"
 " -r STR           Region string in which to extract methylation\n"
 " -l FILE          A BED file listing regions for inclusion.\n"
 " --keepStrand     If a BED file is specified, then this option will cause the\n"
@@ -298,6 +302,10 @@ void mbias_usage() {
 " --nCTOB INT,INT,INT,INT As with --nOT, but for the original bottom, complementary\n"
 "                  to the original top, and complementary to the original bottom\n"
 "                  strands, respectively.\n"
+" --fivePrime INT  Alternative trimming option to --OT / --nOT. Trimming based on\n"
+"                  fragment ends rather than read ends. Experimental, and is not\n"
+"                  accurate in cases where trim length is greater than read length\n"
+" --threePrime INT\n"
 " --version        Print version and the quit\n");
 }
 
@@ -326,6 +334,10 @@ int mbias_main(int argc, char *argv[]) {
     config.minConversionEfficiency = 0.0;
     for(i=0; i<16; i++) config.bounds[i] = 0;
     for(i=0; i<16; i++) config.absoluteBounds[i] = 0;
+    config.fivePrime = 0;
+    config.threePrime = 0;
+    config.minIsize = 0;
+    config.maxIsize = 0;
 
     static struct option lopts[] = {
         {"noCpG",        0, NULL,   1},
@@ -344,6 +356,10 @@ int mbias_main(int argc, char *argv[]) {
         {"keepStrand",   0, NULL,  14},
         {"minConversionEfficiency", 1, NULL, 15},
         {"ignoreNH",     0, NULL,  16},
+        {"fivePrime",  1, NULL, 17},
+        {"threePrime", 1, NULL, 18},
+        {"minIsize",  1, NULL, 19},
+        {"maxIsize", 1, NULL, 20},
         {"ignoreFlags",  1, NULL, 'F'},
         {"requireFlags", 1, NULL, 'R'},
         {"help",         0, NULL, 'h'},
@@ -420,6 +436,18 @@ int mbias_main(int argc, char *argv[]) {
         case 16:
             config.ignoreNH = 1;
             break;
+        case 17:
+            config.fivePrime = atoi(optarg);
+            break;
+        case 18:
+            config.threePrime = atoi(optarg);
+            break;
+        case 19:
+            config.minIsize = atoi(optarg);
+            break;
+        case 20:
+            config.maxIsize = atoi(optarg);
+            break;
         case 'F' :
             config.ignoreFlags = atoi(optarg);
             break;
@@ -460,6 +488,22 @@ int mbias_main(int argc, char *argv[]) {
     if(config.minMapq < 0) {
         fprintf(stderr, "-q %i is invalid. Resetting to 0, which is the lowest possible value.\n", config.minMapq);
         config.minMapq = 0;
+    }
+    if(config.fivePrime < 0) {
+        fprintf(stderr, "--fivePrime %i is invalid. Resetting to 0, which is the lowest possible value.\n", config.fivePrime);
+        config.fivePrime = 0;
+    }
+    if(config.threePrime < 0) {
+        fprintf(stderr, "--threePrime %i is invalid. Resetting to 0, which is the lowest possible value.\n", config.threePrime);
+        config.threePrime = 0;
+    }
+    if(config.minIsize < 0) {
+        fprintf(stderr, "--minIsize %i is invalid. Resetting to 0, which is the default value.\n", config.minIsize);
+        config.minIsize = 0;
+    }
+    if(config.maxIsize < 0) {
+        fprintf(stderr, "--maxIsize %i is invalid. Resetting to 0, which is the default value.\n", config.maxIsize);
+        config.maxIsize = 0;
     }
 
     //Is there still a metric to output?
