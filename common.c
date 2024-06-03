@@ -15,7 +15,13 @@ void parseBounds(char *s2, int *vals, int mult) {
 
     p = strtok(s, ",");
     tempV = strtol(p, &end, 10);
-    if((errno == ERANGE && (tempV == LONG_MAX || tempV == LONG_MIN)) || (errno != 0 && tempV == 0) || end == p) v = -1;
+    // unsure why in original code it was specified errno != 0 && tempV == 0
+    // unsure how errno works, but from the manual: The value in errno is significant only when the return value of
+    //    the call indicated an error (i.e., -1 from most system calls; -1
+    //    or NULL from most library functions); a function that succeeds is
+    //    allowed to change errno.  The value of errno is never set to zero
+    //    by any system call or library function.
+    if((errno == ERANGE && (tempV == LONG_MAX || tempV == LONG_MIN)) || (errno < 0 && tempV == 0) || end == p) v = -1;
     else if(tempV > INT_MAX || tempV < LONG_MIN) v = -1;
     else v = tempV;
 
@@ -28,7 +34,7 @@ void parseBounds(char *s2, int *vals, int mult) {
     for(i=1; i<4; i++) {
         p = strtok(NULL, ",");
         tempV = strtol(p, &end, 10);
-        if((errno == ERANGE && (tempV == LONG_MAX || tempV == LONG_MIN)) || (errno != 0 && tempV == 0) || end == p) v = -1;
+        if((errno == ERANGE && (tempV == LONG_MAX || tempV == LONG_MIN)) || (errno < 0 && tempV == 0) || end == p) v = -1;
         else if(tempV > INT_MAX || tempV < LONG_MIN) v = -1;
         else v = tempV;
 
