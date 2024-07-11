@@ -298,6 +298,8 @@ void *perReadMetrics(void *foo) {
             if(config->requireFlags && (config->requireFlags & b->core.flag) != config->requireFlags) continue;
             if(config->ignoreFlags && (config->ignoreFlags & b->core.flag) != 0) continue;
             if(b->core.qual < config->minMapq) continue;
+            if(config->minIsize && ( abs(b->core.isize) < config->minIsize) ) continue; //Minimum insert size
+            if(config->maxIsize && ( abs(b->core.isize) > config->maxIsize) ) continue; //Maximum insert size
             if(config->fivePrime || config->threePrime) b = trimFragmentEnds(b, config->fivePrime, config->threePrime);
             processRead(config, b, seq, localPos2, seqlen, &nmethyl, &nunmethyl);
             addRead(os, b, hdr, nmethyl, nunmethyl);
