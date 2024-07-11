@@ -616,6 +616,7 @@ float computeConversionEfficiency(bam1_t *b, mplp_data *ldata) {
 }
 
 //This will need to be restructured to handle multiple input files
+//Note: the perRead subcommand uses a different filtering function from within perRead.c
 int filter_func(void *data, bam1_t *b) {
     int rv, NH, overlap;
     mplp_data *ldata = (mplp_data *) data;
@@ -627,8 +628,8 @@ int filter_func(void *data, bam1_t *b) {
         if(rv<0) return rv;
         if(b->core.tid == -1 || b->core.flag & BAM_FUNMAP) continue; //Unmapped
         if(b->core.qual < ldata->config->minMapq) continue; //-q
-        if(ldata->config->minIsize && abs(b->core.isize) < ldata->config->minIsize) continue; //Minimum insert size
-        if(ldata->config->maxIsize && abs(b->core.isize) > ldata->config->maxIsize) continue; //Maximum insert size
+        if(ldata->config->minIsize && ( abs(b->core.isize) < ldata->config->minIsize) ) continue; //Minimum insert size
+        if(ldata->config->maxIsize && ( abs(b->core.isize) > ldata->config->maxIsize) ) continue; //Maximum insert size
         if(b->core.flag & ldata->config->ignoreFlags) continue; //By default: secondary alignments, QC failed, PCR duplicates, and supplemental alignments
         if(ldata->config->requireFlags && (b->core.flag & ldata->config->requireFlags) != ldata->config->requireFlags) continue;
         if(!ldata->config->keepDupes && b->core.flag & BAM_FDUP) continue;
