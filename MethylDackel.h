@@ -252,4 +252,7 @@ int custom_overlap_destructor(void *data, const bam1_t *b, bam_pileup_cd *cd);
 void *initOlapHash();
 void destroyOlapHash(void *ohash);
 
+// export functions to be accessed in perRead.c
+bam1_t *trimAlignment(bam1_t *b, int bounds[16]);
+bam1_t *trimAbsoluteAlignment(bam1_t *b, int bounds[16]);
 bam1_t *trimFragmentEnds(bam1_t *b, int fivePrime, int threePrime);
