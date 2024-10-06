@@ -11,7 +11,7 @@ CFLAGS ?= -Wall -g -O3 -pthread
 
 all: MethylDackel
 
-OBJS = common.o bed.o svg.o overlaps.o extract.o MBias.o mergeContext.o perRead.o
+OBJS = common.o bed.o svg.o overlaps.o extract.o MBias.o mergeContext.o perRead.o MBias_perFL.o 
 VERSION = 0.6.1
 
 version.h:

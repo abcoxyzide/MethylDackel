@@ -256,3 +256,7 @@ void destroyOlapHash(void *ohash);
 bam1_t *trimAlignment(bam1_t *b, int bounds[16]);
 bam1_t *trimAbsoluteAlignment(bam1_t *b, int bounds[16]);
 bam1_t *trimFragmentEnds(bam1_t *b, int fivePrime, int threePrime);
+
+// export functions to be access in MBias_perFL.c
+strandMeth *growStrandMeth(strandMeth *s, int32_t l);
+strandMeth *mergeStrandMeth(strandMeth *target, strandMeth *source);

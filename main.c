@@ -15,6 +15,7 @@ uint32_t outputBin = 0;
 uint64_t globalnVariantPositions = 0;
 
 int mbias_main(int argc, char *argv[]);
+int mbiasFL_main(int argc, char *argv[]);
 int extract_main(int argc, char *argv[]);
 int mergeContext_main(int argc, char *argv[]);
 int perRead_main(int argc, char *argv[]);
@@ -28,6 +29,7 @@ void usage_main() {
 "Commands:\n"
 "    mbias    Determine the position-dependent methylation bias in a dataset,\n"
 "             producing diagnostic SVG images.\n"
+"    mbiasFL  Same as mbias, but output mbias for each fragment length.\n"
 "    extract  Extract methylation metrics from an alignment file in BAM/CRAM\n"
 "             format.\n"
 "    mergeContext   Combine single Cytosine metrics from 'MethylDackel extract' into\n"
@@ -50,6 +52,8 @@ int main(int argc, char *argv[]) {
         return extract_main(argc-1, argv+1);
     } else if(strcmp(argv[1], "mbias") == 0) {
         return mbias_main(argc-1, argv+1);
+    } else if(strcmp(argv[1], "mbiasFL") == 0) {
+        return mbiasFL_main(argc-1, argv+1);
     } else if(strcmp(argv[1], "mergeContext") == 0) {
         return mergeContext_main(argc-1, argv+1);
     } else if(strcmp(argv[1], "perRead") == 0) {
