@@ -101,7 +101,10 @@ void processRead(Config *config, bam1_t *b, char *seq, uint32_t sequenceStart, i
     size_t m = 0;
     int n_cigar_mate;
     n_cigar_mate = sam_parse_cigar(c_string, &end, &mate_cigar, &m);
+    // core.mpos gives leftward reference position of mate read (0-based)
+    // calculate the rightward reference position of mate read
     uint32_t matePosition = b->core.mpos + bam_cigar2rlen(n_cigar_mate, mate_cigar);
+
 /*    int mateQlen = bam_cigar2qlen(n_cigar_mate, mate_cigar);
 
     // 5' and 3' trimming, assumes paired end sequencing
@@ -145,11 +148,30 @@ void processRead(Config *config, bam1_t *b, char *seq, uint32_t sequenceStart, i
                 // If read is on the reverse strand (ie rightward to its mate), skip overlap with mate
                 // not ideal, as this effectively always ignore reverse strand if insert size < 2x read length
                 // but to combine info from read pair, pileup is needed, while perRead is ran on bam entry alone
-                if(bam_is_rev(b) && (mappedPosition <= matePosition)) {
-                    mappedPosition++;
-                    readPosition++;
-                    cigarOPOffset++;
-                    continue;
+                // if(bam_is_rev(b) && (mappedPosition <= matePosition)) {
+                //     mappedPosition++;
+                //     readPosition++;
+                //     cigarOPOffset++;
+                //     continue;
+                // }
+                // If read 2, skip overlap with read 1 to avoid counting the same position twice
+                // Ideally want to combine info from read pair based on base qual, but pileup is needed, while perRead is ran on bam entry alone
+                // Should be fine, as R2 generally worse quality than R1
+                if(b->core.flag & BAM_FREAD2) {
+                    // if reverse strand, overlap is calculated using mate's rightward position (1-based)
+                    if(bam_is_rev(b) && (mappedPosition <= matePosition)) {
+                        mappedPosition++;
+                        readPosition++;
+                        cigarOPOffset++;
+                        continue;
+                    }
+                    // if forward strand, overlap is calculated using mate's leftward position (0-based)
+                    if(bam_is_mrev(b) && (mappedPosition > b->core.mpos)) {
+                        mappedPosition++;
+                        readPosition++;
+                        cigarOPOffset++;
+                        continue;
+                    }
                 }
 /*
                 // Skip the left bound; right bound is skipped using the while loop conditions
@@ -300,6 +322,8 @@ void *perReadMetrics(void *foo) {
             if(b->core.qual < config->minMapq) continue;
             if(config->minIsize && ( abs(b->core.isize) < config->minIsize) ) continue; //Minimum insert size
             if(config->maxIsize && ( abs(b->core.isize) > config->maxIsize) ) continue; //Maximum insert size
+            if(config->bounds) b = trimAlignment(b, config->bounds);
+            if(config->absoluteBounds) b = trimAbsoluteAlignment(b, config->absoluteBounds);
             if(config->fivePrime || config->threePrime) b = trimFragmentEnds(b, config->fivePrime, config->threePrime);
             processRead(config, b, seq, localPos2, seqlen, &nmethyl, &nunmethyl);
             addRead(os, b, hdr, nmethyl, nunmethyl);
@@ -380,6 +404,24 @@ void perRead_usage() {
 " -@ INT     The number of threads to use, the default 1\n"
 " --chunkSize INT  The size of the genome processed by a single thread at a time.\n"
 "            The default is 1000000 bases. This value MUST be at least 1.\n"
+" --OT INT,INT,INT,INT Inclusion bounds for methylation calls from reads/pairs\n"
+"                  originating from the original top strand. Suggested values can\n"
+"                  be obtained from the MBias program. Each integer represents a\n"
+"                  1-based position on a read. For example --OT A,B,C,D\n"
+"                  translates to, \"Include calls at positions from A through B\n"
+"                  on read #1 and C through D on read #2\". If a 0 is used a any\n"
+"                  position then that is translated to mean start/end of the\n"
+"                  alignment, as appropriate. For example, --OT 5,0,0,0 would\n"
+"                  include all but the first 4 bases on read #1. Users are\n"
+"                  strongly advised to consult a methylation bias plot, for\n"
+"                  example by using the MBias program.\n"
+" --OB INT,INT,INT,INT\n"
+" --nOT INT,INT,INT,INT Like --OT, but always exclude INT bases from a given end\n"
+"                  from inclusion,regardless of the length of an alignment. This\n"
+"                  is useful in cases where reads may have already been trimmed\n"
+"                  to different lengths, but still none-the-less contain a\n"
+"                  certain length bias at one or more ends.\n"
+" --nOB INT,INT,INT,INT\n"
 " --fivePrime INT  Alternative trimming option to --OT / --nOT. Trimming based on\n"
 "                  fragment ends rather than read ends. Experimental, and is not\n"
 "                  accurate in cases where trim length is greater than read length\n"
@@ -414,8 +456,12 @@ int perRead_main(int argc, char *argv[]) {
     config.requireFlags = 0;
     config.nThreads = 1;
     config.chunkSize = 1000000;
+    for(i=0; i<16; i++) config.bounds[i] = 0;
+    for(i=0; i<16; i++) config.absoluteBounds[i] = 0;
     config.fivePrime = 0;
     config.threePrime = 0;
+    config.minIsize = 0;
+    config.maxIsize = 0;
 
     static struct option lopts[] = {
         {"help",    0, NULL, 'h'},
@@ -424,6 +470,10 @@ int perRead_main(int argc, char *argv[]) {
         {"keepStrand",   0, NULL,  20},
         {"ignoreFlags",  1, NULL, 'F'},
         {"requireFlags", 1, NULL, 'R'},
+        {"OT",           1, NULL,   7},
+        {"OB",           1, NULL,   8},
+        {"nOT",          1, NULL,  13},
+        {"nOB",          1, NULL,  14},
         {"fivePrime",  1, NULL, 22},
         {"threePrime", 1, NULL, 23},
         {"minIsize", 1, NULL, 24},
@@ -464,6 +514,18 @@ int perRead_main(int argc, char *argv[]) {
             break;
         case 'R':
             config.requireFlags = atoi(optarg);
+            break;
+        case 7:
+            parseBounds(optarg, config.bounds, 0);
+            break;
+        case 8:
+            parseBounds(optarg, config.bounds, 1);
+            break;
+        case 13:
+            parseBounds(optarg, config.absoluteBounds, 0);
+            break;
+        case 14:
+            parseBounds(optarg, config.absoluteBounds, 1);
             break;
         case 19:
             config.chunkSize = strtoul(optarg, NULL, 10);
