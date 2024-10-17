@@ -3,6 +3,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <math.h>
 #include <errno.h>
 #include <limits.h>
 #include <assert.h>
@@ -268,7 +269,7 @@ what's the interpretation when read is soft trimmed (ie bam_cigar_op(cigar) == B
 */
 
 
-bam1_t *trimFragmentEnds(bam1_t *b, int fivePrime, int threePrime) {
+bam1_t *trimFragmentEnds(bam1_t *b, int fivePrime, int vbiasIntercept, float vbiasSlope) {
     int i, lb = 0, rb = 0, selfTrim, mateTrim;
     int mateTrim_mapPos;
     uint8_t *qual = bam_get_qual(b);
@@ -287,6 +288,13 @@ bam1_t *trimFragmentEnds(bam1_t *b, int fivePrime, int threePrime) {
     uint32_t selfEndPos = bam_endpos(b);
     int m_qlen = bam_cigar2qlen(m_n_cigar, m_CIGAR);
 
+    // calculate threePrime trim size based on vbiasIntercept and vbiasSlope
+    // vbiasSlope is usually not relevant, but in cases eg urine cfDNA it might be useful (see mbiasFL)
+    // when vbiasSlope equals 1 (default), vbiasIntercept is equivalent to how many bases to trim from 3' end (i.e. threePrime)
+    // threePrime would always round up (i.e. lean on the aggressive side)
+    int threePrime;
+    threePrime = ceil( abs(b->core.isize) - (abs(b->core.isize) - vbiasIntercept) / vbiasSlope );
+    
     // set the params
     if(b->core.flag & BAM_FPROPER_PAIR) {
         selfTrim = (b->core.flag & BAM_FREAD1) ? fivePrime : threePrime;
@@ -672,7 +680,7 @@ int filter_func(void *data, bam1_t *b) {
         ***********************************************************************/
         if(ldata->config->bounds) b = trimAlignment(b, ldata->config->bounds);
         if(ldata->config->absoluteBounds) b = trimAbsoluteAlignment(b, ldata->config->absoluteBounds);
-        if(ldata->config->fivePrime || ldata->config->threePrime) b = trimFragmentEnds(b, ldata->config->fivePrime, ldata->config->threePrime);
+        if(ldata->config->fivePrime || ldata->config->threePrime) b = trimFragmentEnds(b, ldata->config->fivePrime, ldata->config->threePrime, ldata->config->vbiasSlope);
         break;
     }
     return rv;

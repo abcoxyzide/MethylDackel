@@ -125,6 +125,7 @@ typedef struct {
     unsigned long chunkSize;
     int fivePrime;
     int threePrime;
+    float vbiasSlope;
     int minIsize;
     int maxIsize;
 } Config;
@@ -255,7 +256,7 @@ void destroyOlapHash(void *ohash);
 // export functions to be accessed in perRead.c
 bam1_t *trimAlignment(bam1_t *b, int bounds[16]);
 bam1_t *trimAbsoluteAlignment(bam1_t *b, int bounds[16]);
-bam1_t *trimFragmentEnds(bam1_t *b, int fivePrime, int threePrime);
+bam1_t *trimFragmentEnds(bam1_t *b, int fivePrime, int vbiasIntercept, float vbiasSlope);
 
 // export functions to be access in MBias_perFL.c
 strandMeth *growStrandMeth(strandMeth *s, int32_t l);

@@ -716,9 +716,12 @@ void extract_usage() {
 "                  complementary to the original top, and complementary to the\n"
 "                  original bottom strands, respectively.\n"
 " --fivePrime INT  Alternative trimming option to --OT / --nOT. Trimming based on\n"
-"                  fragment ends rather than read ends. Experimental, and is not\n"
-"                  accurate in cases where trim length is greater than read length\n"
-" --threePrime INT\n"
+"                  fragment ends rather than read ends. Experimental, and may not\n"
+"                  be accurate in cases where trim length is greater than read length\n"
+" --threePrime INT Same as fivePrime but trimming from 3' end when vbiasSlope == 1.\n"
+"                  When vbiasSlope != 1, threePrime equals the vbias intercept.\n"
+" --vbiasSlope FLOAT Modify the 3' trimming by insert size. Refer to to mbiasFL\n"
+"                  or vbias plots; determines the slope of the oblique cutoff. Default: 1.\n"
 " --version        Print version and then quit.\n"
 "\nNote that --fraction, --counts, and --logit are mutually exclusive!\n");
 }
@@ -773,6 +776,7 @@ int extract_main(int argc, char *argv[]) {
     for(i=0; i<16; i++) config.absoluteBounds[i] = 0;
     config.fivePrime = 0;
     config.threePrime = 0;
+    config.vbiasSlope = 1;
     config.minIsize = 0;
     config.maxIsize = 0;
 
@@ -807,6 +811,7 @@ int extract_main(int argc, char *argv[]) {
         {"ignoreNH",     0, NULL, 23},
         {"fivePrime",  1, NULL, 24},
         {"threePrime", 1, NULL, 25},
+        {"vbiasSlope", 1, NULL, 28},
         {"minIsize",  1, NULL, 26},
         {"maxIsize", 1, NULL, 27},
         {"ignoreFlags",  1, NULL, 'F'},
@@ -926,12 +931,15 @@ int extract_main(int argc, char *argv[]) {
             break;
         case 25:
             config.threePrime = atoi(optarg);
+            break;
+        case 28:
+            config.vbiasSlope = atoi(optarg);
+            break;
         case 26:
             config.minIsize = atoi(optarg);
             break;
         case 27:
             config.maxIsize = atoi(optarg);
-            break;
             break;
         case 'M':
             config.BWName = optarg;
@@ -1067,6 +1075,10 @@ int extract_main(int argc, char *argv[]) {
     if(config.threePrime < 0) {
         fprintf(stderr, "--threePrime %i is invalid. Resetting to 0, which is the lowest possible value.\n", config.threePrime);
         config.threePrime = 0;
+    }
+    if(config.vbiasSlope <= 0) {
+        fprintf(stderr, "--vbiasSlope is invalid (<= 0). Resetting to 1, which is the default value.\n", config.vbiasSlope);
+        config.vbiasSlope = 1;
     }
     if(config.minIsize < 0) {
         fprintf(stderr, "--minIsize %i is invalid. Resetting to 0, which is the default value.\n", config.minIsize);
