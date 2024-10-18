@@ -324,7 +324,7 @@ void *perReadMetrics(void *foo) {
             if(config->maxIsize && ( abs(b->core.isize) > config->maxIsize) ) continue; //Maximum insert size
             if(config->bounds) b = trimAlignment(b, config->bounds);
             if(config->absoluteBounds) b = trimAbsoluteAlignment(b, config->absoluteBounds);
-            if(config->fivePrime || config->threePrime) b = trimFragmentEnds(b, config->fivePrime, config->threePrime, config->vbiasSlope);
+            if(config->fivePrime || config->threePrime) b = trimFragmentEnds(b, config->fivePrime, config->threePrime, config->vbiasSlope, config->fixedRLenFromR1);
             processRead(config, b, seq, localPos2, seqlen, &nmethyl, &nunmethyl);
             addRead(os, b, hdr, nmethyl, nunmethyl);
         }

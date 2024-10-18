@@ -380,7 +380,7 @@ int mbias_main(int argc, char *argv[]) {
         {"fivePrime",  1, NULL, 17},
         {"threePrime", 1, NULL, 18},
         {"vbiasSlope", 1, NULL, 21},
-        {"fixedRLenFromR1", 1, NULL, 22},
+        {"fixedRLenFromR1", 1, NULL, 24},
         {"minIsize",  1, NULL, 19},
         {"maxIsize", 1, NULL, 20},
         {"ignoreFlags",  1, NULL, 'F'},
@@ -474,7 +474,7 @@ int mbias_main(int argc, char *argv[]) {
         case 21:
             config.vbiasSlope = atoi(optarg);
             break;
-        case 22:
+        case 24:
             config.fixedRLenFromR1 = atoi(optarg);
             break;
         case 19:
