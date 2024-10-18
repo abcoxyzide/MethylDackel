@@ -159,7 +159,7 @@ int rlen2qlen(int rlen, int n_cigar, uint32_t *CIGAR, bam1_t *b) {
         mapPos = rlen;
     } else if(rlen < 0) {
         mapPos = rlen;
-        fprintf(stderr, "Warning: rlen is negative; 0 qlen returned. qname is [[ %s ]].\n", bam_get_qname(b));
+        // fprintf(stderr, "Warning: rlen is negative; 0 qlen returned. qname is [[ %s ]].\n", bam_get_qname(b));
     }
 
     while(mapPos < rlen && cigarPos < n_cigar) {
