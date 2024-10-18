@@ -506,7 +506,7 @@ int mbias_main(int argc, char *argv[]) {
         config.threePrime = 0;
     }
     if(config.vbiasSlope <= 0) {
-        fprintf(stderr, "--vbiasSlope is invalid (<= 0). Resetting to 1, which is the default value.\n", config.vbiasSlope);
+        fprintf(stderr, "--vbiasSlope is invalid (<= 0). Resetting to 1, which is the default value.\n");
         config.vbiasSlope = 1;
     }
     if(config.minIsize < 0) {
