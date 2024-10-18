@@ -722,6 +722,8 @@ void extract_usage() {
 "                  When vbiasSlope != 1, threePrime equals the vbias intercept.\n"
 " --vbiasSlope FLOAT Modify the 3' trimming by insert size. Refer to to mbiasFL\n"
 "                  or vbias plots; determines the slope of the oblique cutoff. Default: 1.\n"
+" --fixedRLenFromR1 INT Trim by fixed reference distance from the 5' end of R1. \n"
+"                  Will not perform trimming when set to 0. Default: 0.\n"
 " --version        Print version and then quit.\n"
 "\nNote that --fraction, --counts, and --logit are mutually exclusive!\n");
 }
@@ -777,6 +779,7 @@ int extract_main(int argc, char *argv[]) {
     config.fivePrime = 0;
     config.threePrime = 0;
     config.vbiasSlope = 1;
+    config.fixedRLenFromR1 = 0;
     config.minIsize = 0;
     config.maxIsize = 0;
 
@@ -812,6 +815,7 @@ int extract_main(int argc, char *argv[]) {
         {"fivePrime",  1, NULL, 24},
         {"threePrime", 1, NULL, 25},
         {"vbiasSlope", 1, NULL, 28},
+        {"fixedRLenFromR1", 1, NULL, 29},
         {"minIsize",  1, NULL, 26},
         {"maxIsize", 1, NULL, 27},
         {"ignoreFlags",  1, NULL, 'F'},
@@ -934,6 +938,9 @@ int extract_main(int argc, char *argv[]) {
             break;
         case 28:
             config.vbiasSlope = atoi(optarg);
+            break;
+        case 29:
+            config.fixedRLenFromR1 = atoi(optarg);
             break;
         case 26:
             config.minIsize = atoi(optarg);
@@ -1079,6 +1086,10 @@ int extract_main(int argc, char *argv[]) {
     if(config.vbiasSlope <= 0) {
         fprintf(stderr, "--vbiasSlope is invalid (<= 0). Resetting to 1, which is the default value.\n");
         config.vbiasSlope = 1;
+    }
+    if(config.fixedRLenFromR1 < 0) {
+        fprintf(stderr, "--fixedRLenFromR1 %i is invalid. Resetting to 0, which is the default value.\n", config.fixedRLenFromR1);
+        config.fixedRLenFromR1 = 0;
     }
     if(config.minIsize < 0) {
         fprintf(stderr, "--minIsize %i is invalid. Resetting to 0, which is the default value.\n", config.minIsize);

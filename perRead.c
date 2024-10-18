@@ -429,6 +429,8 @@ void perRead_usage() {
 "                  When vbiasSlope != 1, threePrime equals the vbias intercept.\n"
 " --vbiasSlope FLOAT Modify the 3' trimming by insert size. Refer to to mbiasFL\n"
 "                  or vbias plots; determines the slope of the oblique cutoff. Default: 1.\n"
+" --fixedRLenFromR1 INT Trim by fixed reference distance from the 5' end of R1. \n"
+"                  Will not perform trimming when set to 0. Default: 0.\n"
 " --minIsize INT  Filter by minimum insert size; inclusive of INT\n"
 " --maxIsize INT  Filter by maximum insert size; also inclusive\n"
 " --version  Print version and quit\n"
@@ -464,6 +466,7 @@ int perRead_main(int argc, char *argv[]) {
     config.fivePrime = 0;
     config.threePrime = 0;
     config.vbiasSlope = 1;
+    config.fixedRLenFromR1 = 0;
     config.minIsize = 0;
     config.maxIsize = 0;
 
@@ -481,6 +484,7 @@ int perRead_main(int argc, char *argv[]) {
         {"fivePrime",  1, NULL, 22},
         {"threePrime", 1, NULL, 23},
         {"vbiasSlope", 1, NULL, 26},
+        {"fixedRLenFromR1", 1, NULL, 27},
         {"minIsize", 1, NULL, 24},
         {"maxIsize", 1, NULL, 25},
         {0,         0, NULL,   0}
@@ -554,6 +558,9 @@ int perRead_main(int argc, char *argv[]) {
         case 26:
             config.vbiasSlope = atoi(optarg);
             break;
+        case 27:
+            config.fixedRLenFromR1 = atoi(optarg);
+            break;
         case 24:
             config.minIsize = atoi(optarg);
             break;
@@ -597,6 +604,10 @@ int perRead_main(int argc, char *argv[]) {
     if(config.vbiasSlope <= 0) {
         fprintf(stderr, "--vbiasSlope is invalid (<= 0). Resetting to 1, which is the default value.\n");
         config.vbiasSlope = 1;
+    }
+    if(config.fixedRLenFromR1 < 0) {
+        fprintf(stderr, "--fixedRLenFromR1 %i is invalid. Resetting to 0, which is the default value.\n", config.fixedRLenFromR1);
+        config.fixedRLenFromR1 = 0;
     }
     if(config.minIsize < 0) {
         fprintf(stderr, "--minIsize %i is invalid. Resetting to 0, which will not filter based on min insert size.\n", config.minIsize);

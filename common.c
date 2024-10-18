@@ -270,7 +270,7 @@ what's the interpretation when read is soft trimmed (ie bam_cigar_op(cigar) == B
 */
 
 
-bam1_t *trimFragmentEnds(bam1_t *b, int fivePrime, int vbiasIntercept, float vbiasSlope) {
+bam1_t *trimFragmentEnds(bam1_t *b, int fivePrime, int vbiasIntercept, float vbiasSlope, int fixedRLenFromR1) {
     int i, lb = 0, rb = 0, selfTrim, mateTrim;
     int mateTrim_mapPos;
     uint8_t *qual = bam_get_qual(b);
@@ -287,6 +287,7 @@ bam1_t *trimFragmentEnds(bam1_t *b, int fivePrime, int vbiasIntercept, float vbi
     // get mate's genomic end coordinate
     uint32_t mateEndPos = b->core.mpos + bam_cigar2rlen(m_n_cigar, m_CIGAR);
     uint32_t selfEndPos = bam_endpos(b);
+    uint32_t fixedTrimPos;
     // get mate's read length (ie query length)
     // the trimming procedure operates on the read length, not genomic distance
     int m_qlen = bam_cigar2qlen(m_n_cigar, m_CIGAR);
@@ -295,6 +296,7 @@ bam1_t *trimFragmentEnds(bam1_t *b, int fivePrime, int vbiasIntercept, float vbi
     // vbiasSlope is usually not relevant, but in cases eg urine cfDNA it might be useful (see mbiasFL)
     // when vbiasSlope equals 1 (default), threePrime == vbiasIntercept and does not depend on insert size, and is equivalent to how many bases to trim from 3' end (c.f. fivePrime)
     // threePrime would always round up (i.e. lean on the aggressive side)
+    // note: although threePrime is determined based on genomic position (isize), the trimming performed will be on the read length (qlen)
     int threePrime;
     threePrime = ceil( abs(b->core.isize) - (abs(b->core.isize) - vbiasIntercept) / vbiasSlope );
     
@@ -312,11 +314,27 @@ bam1_t *trimFragmentEnds(bam1_t *b, int fivePrime, int vbiasIntercept, float vbi
          * 4. case 2: mate read shorter than trim length, 
          */
         if(b->core.flag & BAM_FMREVERSE) { // forward strand; selfTrim at left bound, mateTrim at right bound
-            lb = selfTrim;
+            if(fixedRLenFromR1 != 0) {
+                fixedTrimPos = (b->core.flag & BAM_FREAD1) ? b->core.pos + fixedRLenFromR1 : mateEndPos - fixedRLenFromR1;
+            }
+            
+            // may need to adjust lb by fixedTrimPos if read 2 and fixedRLenFromR1 is set
+            // choose whichever's more aggressive
+            if(b->core.flag & BAM_FREAD2 && fixedRLenFromR1 != 0) {
+                lb = rlen2qlen(fixedTrimPos - b->core.pos, b->core.n_cigar, CIGAR, b);
+                lb = (selfTrim > lb) ? selfTrim : lb;
+            } else {
+                lb = selfTrim;
+            }
+            
             if(selfEndPos > b->core.mpos) { // ie reads overlap
                 if(m_qlen >= mateTrim) { // mate read length longer than trim length
                     // find genomic coordinate after trimming
                     mateTrim_mapPos = b->core.mpos + qlen2rlen(m_qlen - mateTrim, m_n_cigar, m_CIGAR, b);
+                    // adjust mateTrim_mapPos if fixedTrimPos is more aggressive for read 1
+                    if(b->core.flag & BAM_FREAD1 && fixedRLenFromR1 != 0) {
+                        mateTrim_mapPos = (mateTrim_mapPos < fixedTrimPos) ? mateTrim_mapPos : fixedTrimPos;
+                    }
                     // convert the genomic coordinate into how many bases to trim in self read
                     rb = (selfEndPos > mateTrim_mapPos) ? b->core.l_qseq - rlen2qlen(mateTrim_mapPos - b->core.pos, b->core.n_cigar, CIGAR, b) : 0;
                 } else {
@@ -328,14 +346,33 @@ bam1_t *trimFragmentEnds(bam1_t *b, int fivePrime, int vbiasIntercept, float vbi
             } else { // ie not overlap
                 if(mateTrim > m_qlen) { // ie tricky case 1
                     mateTrim_mapPos = b->core.mpos - (mateTrim - m_qlen);
+                    if(b->core.flag & BAM_FREAD1 && fixedRLenFromR1 != 0) { // same as above
+                        mateTrim_mapPos = (mateTrim_mapPos < fixedTrimPos) ? mateTrim_mapPos : fixedTrimPos;
+                    }
                     rb = (selfEndPos > mateTrim_mapPos) ? b->core.l_qseq - rlen2qlen(mateTrim_mapPos - b->core.pos, b->core.n_cigar, CIGAR, b) : 0;
                 } else rb = 0;
             }
         } else { // reverse strand; selfTrim at right bound, mateTrim at left bound
-            rb = selfTrim;
+            if(fixedRLenFromR1 != 0) {
+                fixedTrimPos = (b->core.flag & BAM_FREAD1) ? selfEndPos - fixedRLenFromR1 : b->core.mpos + fixedRLenFromR1;
+            }
+            
+            // may need to adjust lb by fixedTrimPos if read 2 and fixedRLenFromR1 is set
+            // choose whichever's more aggressive
+            if(b->core.flag & BAM_FREAD2 && fixedRLenFromR1 != 0) {
+                rb = b->core.l_qseq - rlen2qlen(fixedTrimPos - b->core.pos, b->core.n_cigar, CIGAR, b);
+                rb = (selfTrim > rb) ? selfTrim : rb;
+            } else {
+                rb = selfTrim;
+            }
+
             if(mateEndPos > b->core.pos) { // ie reads overlap
                 if(m_qlen >= mateTrim) {
                     mateTrim_mapPos = b->core.mpos + qlen2rlen(mateTrim, m_n_cigar, m_CIGAR, b);
+                    if(b->core.flag & BAM_FREAD1 && fixedRLenFromR1 != 0) { 
+                        // similar to above, but this time the larger the position, the more aggressive
+                        mateTrim_mapPos = (mateTrim_mapPos > fixedTrimPos) ? mateTrim_mapPos : fixedTrimPos;
+                    }
                     lb = (mateTrim_mapPos > b->core.pos) ? rlen2qlen(mateTrim_mapPos - b->core.pos, b->core.n_cigar, CIGAR, b) : 0;
                 } else {
                     lb = rlen2qlen(mateEndPos - b->core.pos, b->core.n_cigar, CIGAR, b) + (mateTrim - m_qlen);
@@ -343,6 +380,9 @@ bam1_t *trimFragmentEnds(bam1_t *b, int fivePrime, int vbiasIntercept, float vbi
             } else { // ie not overlap
                 if(mateTrim > m_qlen) { // ie tricky case 1
                     mateTrim_mapPos = mateEndPos + (mateTrim - m_qlen);
+                    if(b->core.flag & BAM_FREAD1 && fixedRLenFromR1 != 0) { 
+                        mateTrim_mapPos = (mateTrim_mapPos > fixedTrimPos) ? mateTrim_mapPos : fixedTrimPos;
+                    }
                     lb = (mateTrim_mapPos > b->core.pos) ? rlen2qlen(mateTrim_mapPos - b->core.pos, b->core.n_cigar, CIGAR, b) : 0;
                 } else lb = 0;
             }
@@ -700,7 +740,7 @@ int filter_func(void *data, bam1_t *b) {
         ***********************************************************************/
         if(ldata->config->bounds) b = trimAlignment(b, ldata->config->bounds);
         if(ldata->config->absoluteBounds) b = trimAbsoluteAlignment(b, ldata->config->absoluteBounds);
-        if(ldata->config->fivePrime || ldata->config->threePrime || ldata->config->vbiasSlope != 1) b = trimFragmentEnds(b, ldata->config->fivePrime, ldata->config->threePrime, ldata->config->vbiasSlope);
+        if(ldata->config->fivePrime || ldata->config->threePrime || ldata->config->vbiasSlope != 1 || ldata->config->fixedRLenFromR1) b = trimFragmentEnds(b, ldata->config->fivePrime, ldata->config->threePrime, ldata->config->vbiasSlope, ldata->config->fixedRLenFromR1);
         break;
     }
     return rv;

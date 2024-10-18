@@ -310,6 +310,18 @@ void mbiasFL_usage() {
 " --noCpG          Do not output CpG methylation metrics\n"
 " --CHG            Output CHG methylation metrics\n"
 " --CHH            Output CHH methylation metrics\n"
+" --OT INT,INT,INT,INT Inclusion bounds for methylation calls from reads/pairs\n"
+"                  originating from the original top strand. Suggested values can\n"
+"                  be obtained from the MBias program. Each integer represents a\n"
+"                  1-based position on a read. For example --OT A,B,C,D\n"
+"                  translates to, \"Include calls at positions from A through B\n"
+"                  on read #1 and C through D on read #2\". If a 0 is used a any\n"
+"                  position then that is translated to mean start/end of the\n"
+"                  alignment, as appropriate. For example, --OT 5,0,0,0 would\n"
+"                  include all but the first 4 bases on read #1. Users are\n"
+"                  strongly advised to consult a methylation bias plot, for\n"
+"                  example by using the MBias program.\n"
+" --OB INT,INT,INT,INT\n"
 " --nOT INT,INT,INT,INT Inclusion bound for methylation calls from reads/pairs\n"
 "                  originating from the original top strand. Each integer\n"
 "                  represents a 1-based position from the end of a read. For\n"
@@ -333,6 +345,8 @@ void mbiasFL_usage() {
 "                  When vbiasSlope != 1, threePrime equals the vbias intercept.\n"
 " --vbiasSlope FLOAT Modify the 3' trimming by insert size. Refer to to mbiasFL\n"
 "                  or vbias plots; determines the slope of the oblique cutoff. Default: 1.\n"
+" --fixedRLenFromR1 INT Trim by fixed reference distance from the 5' end of R1. \n"
+"                  Will not perform trimming when set to 0. Default: 0.\n"
 " --version        Print version and the quit\n");
 }
 
@@ -364,6 +378,7 @@ int mbiasFL_main(int argc, char *argv[]) {
     config.fivePrime = 0;
     config.threePrime = 0;
     config.vbiasSlope = 1;
+    config.fixedRLenFromR1 = 0;
     config.minIsize = 1;
     config.maxIsize = 500;
 
@@ -376,6 +391,8 @@ int mbiasFL_main(int argc, char *argv[]) {
         {"keepDiscordant", 0, NULL, 6},
         {"txt",          0, NULL,   7},
         {"noSVG",        0, NULL,   8},
+        {"OT",           1, NULL,  22},
+        {"OB",           1, NULL,  23},
         {"nOT",          1, NULL,   9},
         {"nOB",          1, NULL,  10},
         {"nCTOT",        1, NULL,  11},
@@ -387,6 +404,7 @@ int mbiasFL_main(int argc, char *argv[]) {
         {"fivePrime",  1, NULL, 17},
         {"threePrime", 1, NULL, 18},
         {"vbiasSlope", 1, NULL, 21},
+        {"fixedRLenFromR1", 1, NULL, 22},
         {"minIsize",  1, NULL, 19},
         {"maxIsize", 1, NULL, 20},
         {"ignoreFlags",  1, NULL, 'F'},
@@ -437,6 +455,12 @@ int mbiasFL_main(int argc, char *argv[]) {
             SVG = 0;
             txt = 1;
             break;
+        case 22:
+            parseBounds(optarg, config.bounds, 0);
+            break;
+        case 23:
+            parseBounds(optarg, config.bounds, 1);
+            break;
         case 9 :
             parseBounds(optarg, config.absoluteBounds, 0);
             break;
@@ -473,6 +497,9 @@ int mbiasFL_main(int argc, char *argv[]) {
             break;
         case 21:
             config.vbiasSlope = atoi(optarg);
+            break;
+        case 22:
+            config.fixedRLenFromR1 = atoi(optarg);
             break;
         case 19:
             config.minIsize = atoi(optarg);
@@ -532,6 +559,10 @@ int mbiasFL_main(int argc, char *argv[]) {
     if(config.vbiasSlope <= 0) {
         fprintf(stderr, "--vbiasSlope is invalid (<= 0). Resetting to 1, which is the default value.\n");
         config.vbiasSlope = 1;
+    }
+    if(config.fixedRLenFromR1 < 0) {
+        fprintf(stderr, "--fixedRLenFromR1 %i is invalid. Resetting to 0, which is the default value.\n", config.fixedRLenFromR1);
+        config.fixedRLenFromR1 = 0;
     }
     if(config.minIsize < 0) {
         fprintf(stderr, "--minIsize %i is invalid. Resetting to 1, which is the default value.\n", config.minIsize);
